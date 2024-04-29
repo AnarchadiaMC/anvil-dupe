@@ -57,6 +57,15 @@ public class AnvilDupe extends Module {
             .build()
     );
 
+    private final Setting<Integer> bottleAmount = sgGeneral.add(new IntSetting.Builder()
+            .name("Amount of bottles to throw")
+            .description("How many XP bottles to throw.")
+            .defaultValue(1)
+            .min(1)
+            .sliderMax(20)
+            .build()
+    );
+
     private boolean didDupe = false;
     private int dupedCount = 0;
 
@@ -204,10 +213,25 @@ public class AnvilDupe extends Module {
         }
 
         if (mc.player.experienceLevel == 0) {
-            error("Out of XP! Disabling.");
-            mc.player.closeHandledScreen();
-            toggle();
-            return;
+            FindItemResult exp = InvUtils.findInHotbar(Items.EXPERIENCE_BOTTLE);
+            FindItemResult expI = InvUtils.find(Items.EXPERIENCE_BOTTLE);
+
+            if (!exp.found()) return;
+
+            Rotations.rotate(mc.player.getYaw(), 90, () -> {
+                if (exp.getHand() != null) {
+                    for (int i = 0; i < bottleAmount.get(); i++) {
+                        mc.interactionManager.interactItem(mc.player, exp.getHand());
+                    }
+                }
+                else {
+                    InvUtils.swap(exp.slot(), true);
+                    for (int i = 0; i < bottleAmount.get(); i++) {
+                        mc.interactionManager.interactItem(mc.player, exp.getHand());
+                    }
+                    InvUtils.swapBack();
+                }
+            });
         }
 
         if (!mc.player.currentScreenHandler.getCursorStack().isEmpty()) {

@@ -12,10 +12,16 @@ Welcome to the Auto Anvil Dupe Meteor Client addon, a specially designed solutio
 2. **Stock Up on Anvils:**
    - **Ensure you have anvils placed in any other slot** within your hotbar. These will be essential for the duplication process.
 
-3. **Set Duplication Count:**
+3. **Stock up on Xp bottles**
+   - **Ensure you have them xp bottles in your hotbar** the module only uses the xp bottles in hotbar (Walper was too lazy)
+
+4. **Set amount of xp bottles to throw** 
+   - **Input the amount of xp bottles to throw** Default is 1, which does work but 2 or more is better
+
+5. **Set Duplication Count:**
    - **Input the number of times** you desire to duplicate your selected item. This customization step is crucial for controlling the quantity of your end result.
 
-4. **Activate the Module:**
+6. **Activate the Module:**
    - With your preparations complete, **activate the module** to initiate the duplication process. Watch as your inventory expands with duplicated items!
 
 ## Additional Information
