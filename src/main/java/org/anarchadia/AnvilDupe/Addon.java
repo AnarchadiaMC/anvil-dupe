@@ -8,13 +8,17 @@ import meteordevelopment.meteorclient.systems.modules.Modules;
 import net.minecraft.item.Items;
 import org.slf4j.Logger;
 
+/**
+ * Main addon class for the Anvil Dupe mod
+ * Updated for Minecraft 1.21.4
+ */
 public class Addon extends MeteorAddon {
     public static final Logger LOG = LogUtils.getLogger();
-    public static final Category CATEGORY = new Category("Anarchadia", Items.WATER_BUCKET.getDefaultStack());
+    public static final Category CATEGORY = new Category("Anarchadia", Items.ANVIL.getDefaultStack());
 
     @Override
     public void onInitialize() {
-        LOG.info("Initializing Auto Anvil Duper");
+        LOG.info("Initializing Auto Anvil Duper for Minecraft 1.21.4");
 
         // Modules
         Modules modules = Modules.get();
@@ -23,7 +27,7 @@ public class Addon extends MeteorAddon {
 
     @Override
     public String getPackage() {
-        return "org.anarchadia";
+        return "org.anarchadia.AnvilDupe";
     }
 
     @Override

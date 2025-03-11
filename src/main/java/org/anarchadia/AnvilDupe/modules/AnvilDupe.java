@@ -1,7 +1,7 @@
 package org.anarchadia.AnvilDupe.modules;
 
-
 import org.anarchadia.AnvilDupe.Addon;
+
 import meteordevelopment.meteorclient.events.game.OpenScreenEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.IntSetting;
@@ -10,6 +10,7 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
@@ -29,6 +30,7 @@ import net.minecraft.util.math.Vec3d;
 
 /**
  * Allows automatically duplicating items using the 1.17 anvil dupe, specifically the GoldenDupes version.
+ * Updated for Minecraft 1.21.4
  */
 public class AnvilDupe extends Module {
     /**
@@ -50,7 +52,7 @@ public class AnvilDupe extends Module {
 
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
             .name("delay")
-            .description("How many items to dupe before toggling.")
+            .description("Ticks between actions.")
             .defaultValue(1)
             .min(1)
             .sliderMax(20)
@@ -58,7 +60,7 @@ public class AnvilDupe extends Module {
     );
 
     private final Setting<Integer> bottleAmount = sgGeneral.add(new IntSetting.Builder()
-            .name("Amount of bottles to throw")
+            .name("bottle-amount")
             .description("How many XP bottles to throw.")
             .defaultValue(1)
             .min(1)
@@ -96,11 +98,13 @@ public class AnvilDupe extends Module {
 
     /**
      * Handles the TickEvent.Pre event to control the duping process stages.
-     * @param event The TickEvent.Pre event triggered each tick.
      */
     @EventHandler
-    private void onTick(TickEvent.Pre event) {
-        if(mc.player != null && delay.get() != 0 && mc.player.age % delay.get() != 0) return;
+    private void onTick(TickEvent.Pre ignored) {
+        if (mc == null || mc.player == null) return;
+        
+        if (delay.get() != 0 && mc.player.age % delay.get() != 0) return;
+        
         if (dupedCount >= dupeAmount.get()) {
             info("Duped the desired amount of items, toggling off.");
             toggle();
@@ -108,15 +112,9 @@ public class AnvilDupe extends Module {
         }
 
         switch (currentState) {
-            case LOOKING_FOR_ANVIL:
-                handleLookingForAnvil();
-                break;
-            case WAIT_FOR_GUI:
-                handleWaitForGui();
-                break;
-            case DUPING:
-                handleDuping();
-                break;
+            case LOOKING_FOR_ANVIL -> handleLookingForAnvil();
+            case WAIT_FOR_GUI -> handleWaitForGui();
+            case DUPING -> handleDuping();
         }
     }
 
@@ -124,7 +122,8 @@ public class AnvilDupe extends Module {
      * Searches for an anvil in the player's vicinity, positioning the player to interact or place an anvil as needed.
      */
     private void handleLookingForAnvil() {
-        if (mc.player == null || mc.world == null || mc.interactionManager == null) return;
+        if (mc == null || mc.player == null || mc.world == null || mc.interactionManager == null) return;
+        
         BlockPos playerPos = mc.player.getBlockPos();
         BlockPos targetPos = playerPos.offset(mc.player.getHorizontalFacing(), 2);
 
@@ -137,7 +136,9 @@ public class AnvilDupe extends Module {
         if (isAnvil(blockInFront)) {
             ensureProperRotation(targetPos);
             Direction face = BlockUtils.getDirection(targetPos);
-            BlockHitResult hitResult = new BlockHitResult(new Vec3d((double)targetPos.getX() + 0.5, (double)targetPos.getY() + 0.5, (double)targetPos.getZ() + 0.5), face, targetPos, false);
+            Vec3d hitPos = new Vec3d(targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5);
+            BlockHitResult hitResult = new BlockHitResult(hitPos, face, targetPos, false);
+            
             mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hitResult);
             currentState = AnvilDupeState.WAIT_FOR_GUI;
         } else if (mc.world.getBlockState(targetPos).isAir()) {
@@ -151,14 +152,13 @@ public class AnvilDupe extends Module {
         }
     }
 
-
     /**
      * Ensures the player's rotation towards the anvil for interaction.
      * @param anvilPos The position of the anvil to interact with.
      */
-    @SuppressWarnings("DuplicatedCode")
     private void ensureProperRotation(BlockPos anvilPos) {
-        if (mc.player == null) return;
+        if (mc == null || mc.player == null || mc.player.networkHandler == null) return;
+        
         double diffX = anvilPos.getX() + 0.5 - mc.player.getX();
         double diffY = anvilPos.getY() + 0.5 - (mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()));
         double diffZ = anvilPos.getZ() + 0.5 - mc.player.getZ();
@@ -167,14 +167,15 @@ public class AnvilDupe extends Module {
         float yaw = (float)(Math.toDegrees(Math.atan2(diffZ, diffX)) - 90.0);
         float pitch = (float)(-Math.toDegrees(Math.atan2(diffY, diffXZ)));
 
-        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, mc.player.isOnGround()));
+        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, mc.player.isOnGround(), false));
     }
 
     /**
      * Waits for the anvil GUI to open before proceeding to the duping process.
      */
     private void handleWaitForGui() {
-        if (mc.player == null || mc.player.currentScreenHandler == null) return;
+        if (mc == null || mc.player == null || mc.player.currentScreenHandler == null) return;
+        
         if (mc.player.currentScreenHandler instanceof AnvilScreenHandler) {
             currentState = AnvilDupeState.DUPING;
         }
@@ -184,7 +185,8 @@ public class AnvilDupe extends Module {
      * Handles the actual duping process within the anvil GUI.
      */
     private void handleDuping() {
-        if (mc.player == null || mc.player.currentScreenHandler == null) return;
+        if (mc == null || mc.player == null || mc.player.currentScreenHandler == null) return;
+        
         if (!(mc.player.currentScreenHandler instanceof AnvilScreenHandler)) {
             currentState = AnvilDupeState.LOOKING_FOR_ANVIL;
             return;
@@ -193,20 +195,11 @@ public class AnvilDupe extends Module {
     }
 
     /**
-     * Performs a cycle of actions within the anvil GUI to attempt item duplication. This method carries out the following
-     * key steps:
-
-     * 1. Early exit if preconditions are not met (null checks on player, screen handler, etc.).
-     * 2. Exit and disable the module if the player lacks experience levels, necessary for anvil use.
-     * 3. Synchronize the item on the cursor, if any, to ensure game state consistency.
-     * 4. Prepare an item for duping by placing it in the correct anvil slot and renaming it, utilizing a slight name modification
-     *    to trigger the breaking mechanic.
-     * 5. Attempt to pick up the resulting item from the anvil, checking for the success or failure of the duplication attempt.
-
-     * Note: Success of this procedure depends on specific game mechanics, which may vary by version and server configuration.
+     * Performs a cycle of actions within the anvil GUI to attempt item duplication.
      */
     private void doDupeTick() {
-        if (mc.player == null || mc.player.currentScreenHandler == null || mc.interactionManager == null) return;
+        if (mc == null || mc.player == null || mc.player.currentScreenHandler == null || mc.interactionManager == null) return;
+        
         if (!(mc.player.currentScreenHandler instanceof AnvilScreenHandler anvilHandler)) {
             System.out.println("Player is not in an Anvil Screen Handler");
             return;
@@ -214,55 +207,63 @@ public class AnvilDupe extends Module {
 
         if (mc.player.experienceLevel == 0) {
             FindItemResult exp = InvUtils.findInHotbar(Items.EXPERIENCE_BOTTLE);
-            FindItemResult expI = InvUtils.find(Items.EXPERIENCE_BOTTLE);
-
+            
             if (!exp.found()) return;
 
             Rotations.rotate(mc.player.getYaw(), 90, () -> {
+                if (mc == null || mc.player == null || mc.interactionManager == null) return;
+                
                 if (exp.getHand() != null) {
                     for (int i = 0; i < bottleAmount.get(); i++) {
                         mc.interactionManager.interactItem(mc.player, exp.getHand());
                     }
-                }
-                else {
+                } else {
                     InvUtils.swap(exp.slot(), true);
                     for (int i = 0; i < bottleAmount.get(); i++) {
-                        mc.interactionManager.interactItem(mc.player, exp.getHand());
+                        mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
                     }
                     InvUtils.swapBack();
                 }
             });
         }
 
-        if (!mc.player.currentScreenHandler.getCursorStack().isEmpty()) {
+        ItemStack cursorStack = mc.player.currentScreenHandler.getCursorStack();
+        if (cursorStack != null && !cursorStack.isEmpty()) {
             System.out.println("Synchronizing item on cursor");
             mc.interactionManager.clickSlot(anvilHandler.syncId, 30, 0, SlotActionType.PICKUP, mc.player);
         }
 
-        if (!anvilHandler.getSlot(0).hasStack() && anvilHandler.getSlot(30).hasStack()) {
+        var slot0 = anvilHandler.getSlot(0);
+        var slot30 = anvilHandler.getSlot(30);
+        
+        if (slot0 != null && !slot0.hasStack() && slot30 != null && slot30.hasStack()) {
             System.out.println("Moving item from slot 30 to slot 0");
             mc.interactionManager.clickSlot(anvilHandler.syncId, 30, 0, SlotActionType.PICKUP, mc.player);
             mc.interactionManager.clickSlot(anvilHandler.syncId, 0, 0, SlotActionType.PICKUP, mc.player);
         }
 
-        if (anvilHandler.getSlot(0).hasStack()) {
-            ItemStack stackInSlot0 = anvilHandler.getSlot(0).getStack();
-            String itemName = stackInSlot0.getName().getString();
-            String newName = itemName.endsWith(" ") ? itemName.trim() : itemName + " ";
-            System.out.println("Renaming item");
-            anvilHandler.setNewItemName(newName);
-            mc.player.networkHandler.sendPacket(new RenameItemC2SPacket(newName));
+        if (slot0 != null && slot0.hasStack() && mc.player.networkHandler != null) {
+            ItemStack stackInSlot0 = slot0.getStack();
+            if (stackInSlot0 != null) {
+                String itemName = stackInSlot0.getName().getString();
+                String newName = itemName.endsWith(" ") ? itemName.trim() : itemName + " ";
+                System.out.println("Renaming item");
+                anvilHandler.setNewItemName(newName);
+                mc.player.networkHandler.sendPacket(new RenameItemC2SPacket(newName));
+            }
         }
 
-        if (anvilHandler.getSlot(2).hasStack()) {
+        var slot2 = anvilHandler.getSlot(2);
+        if (slot2 != null && slot2.hasStack()) {
             System.out.println("Attempting to dupe item");
             mc.interactionManager.clickSlot(anvilHandler.syncId, 2, 0, SlotActionType.PICKUP, mc.player);
 
-            if (anvilHandler.getSlot(2).hasStack()) {
+            if (slot2.hasStack()) {
                 System.out.println("Dupe failed, resetting");
                 mc.interactionManager.clickSlot(anvilHandler.syncId, 2, 0, SlotActionType.PICKUP, mc.player);
 
-                if (!mc.player.currentScreenHandler.getCursorStack().isEmpty()) {
+                cursorStack = mc.player.currentScreenHandler.getCursorStack();
+                if (cursorStack != null && !cursorStack.isEmpty()) {
                     System.out.println("Synchronizing item on cursor");
                     mc.interactionManager.clickSlot(anvilHandler.syncId, 30, 0, SlotActionType.PICKUP, mc.player);
                 }
@@ -275,7 +276,6 @@ public class AnvilDupe extends Module {
 
     /**
      * Handles the event when the GUI screen is opened, potentially signaling the duping phase's end or continuation.
-     * @param event The OpenScreenEvent indicating a new GUI screen being opened.
      */
     @EventHandler
     private void onOpenScreen(OpenScreenEvent event) {

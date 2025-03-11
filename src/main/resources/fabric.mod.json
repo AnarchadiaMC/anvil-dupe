@@ -3,12 +3,12 @@
   "id": "auto-anvil-dupe",
   "version": "${version}",
   "name": "Auto Anvil Dupe",
-  "description": "Allows players to duplicate items automatically on Anarchy.cx",
+  "description": "Allows players to duplicate items automatically using anvil dupe",
   "authors": [
     "Shortcoming"
   ],
   "contact": {
-    "repo": "https://github.com/MeteorDevelopment/meteor-addon-template"
+    "repo": "https://github.com/anarchadia/anvil-dupe"
   },
   "icon": "assets/anvilduper/Anvil.png",
   "environment": "client",
@@ -26,6 +26,7 @@
   "depends": {
     "java": ">=17",
     "minecraft": ">=${mc_version}",
-    "meteor-client": "*"
+    "meteor-client": "*",
+    "fabricloader": ">=0.15.7"
   }
 }
